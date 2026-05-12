@@ -1,4 +1,4 @@
-name: 01 - 🎬 دانلود ویدیو
+name: test
 
 on:
   workflow_dispatch:
@@ -39,6 +39,24 @@ jobs:
       contents: write
 
     steps:
+      - name: بررسی اولیه
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: آماده سازی گیت برای فایلهای بزرگ
+        run: |
+          git config --global http.postBuffer 524288000
+          git config --global http.maxRequestBuffer 100M
+          git config --global core.compression 0
+          git config --global pack.windowMemory 256m
+          git config --global pack.packSizeLimit 100m
+          git config --global pack.threads 1
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          echo "Git configured for large file handling"
+
       - name: شروع کانتینر
         run: |
           echo "Starting Cloudflare WARP container..."
@@ -996,7 +1014,7 @@ jobs:
         run: |
           docker stop warp || true
           docker rm warp || true
-      
+
       - name: ذخیره سازی دانلود شده ها
         run: |
           BRANCH="${GITHUB_REF_NAME}"
