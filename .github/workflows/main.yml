@@ -1015,13 +1015,13 @@ jobs:
           docker stop warp || true
           docker rm warp || true
 
-      - name: ذخیره سازی دانلود شده ها (push 5 by 5)
+      - name: ذخیره سازی دانلود شده ها (push 5 by 5, keep previous)
         run: |
           BRANCH="${GITHUB_REF_NAME}"
           REPO_OWNER="${{ github.repository_owner }}"
           REPO_NAME="${{ github.event.repository.name }}"
       
-          echo "AVASAM (https://avasam.ir) - Incremental Push Mode (5-by-5)"
+          echo "AVASAM (https://avasam.ir) - Incremental Push Mode (5-by-5, cumulative)"
           BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
           BACKUP_FILE_LIST=($(find "$BACKUP_DIR" -type f 2>/dev/null))
           BACKUP_FILE_COUNT=${#BACKUP_FILE_LIST[@]}
@@ -1032,7 +1032,7 @@ jobs:
           fi
       
           urlencode() {
-            python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+            python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
           }
       
           regenerate_master_readme() {
@@ -1064,9 +1064,9 @@ jobs:
             [ $BATCH_END -gt $BACKUP_FILE_COUNT ] && BATCH_END=$BACKUP_FILE_COUNT
       
             echo "Processing files $((BATCH_START + 1)) to $BATCH_END of $BACKUP_FILE_COUNT..."
-      
             BATCH_FILES=("${BACKUP_FILE_LIST[@]:$BATCH_START:$((BATCH_END - BATCH_START))}")
       
+            # Copy new batch files over existing ones (no cleaning)
             for f in "${BATCH_FILES[@]}"; do
               cp --parents "$f" videos/
             done
@@ -1090,7 +1090,10 @@ jobs:
                   git fetch origin "$BRANCH"
                   git reset --hard origin/"$BRANCH"
                   mkdir -p videos
-                  for f in "${BATCH_FILES[@]}"; do cp --parents "$f" videos/; done
+                  # Re‑copy all files pushed so far to rebuild context before retry
+                  for ((i=0; i<$BATCH_END; i++)); do
+                    cp --parents "${BACKUP_FILE_LIST[$i]}" videos/
+                  done
                   git add -A videos/
                   regenerate_master_readme
                   git add videos/README.md
@@ -1101,8 +1104,7 @@ jobs:
               echo "No changes detected for this batch."
             fi
       
-            # Clean up before next batch
-            rm -rf videos/*
+            # Move to next batch
             BATCH_START=$BATCH_END
           done
       
