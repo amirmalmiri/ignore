@@ -997,6 +997,11 @@ jobs:
           docker stop warp || true
           docker rm warp || true
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+         fetch-depth: 0
+      
       - name: ذخیره سازی دانلود شده ها
         run: |
           BRANCH="${GITHUB_REF_NAME}"
