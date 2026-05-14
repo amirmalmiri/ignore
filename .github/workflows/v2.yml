@@ -886,26 +886,26 @@ jobs:
           docker stop warp || true
           docker rm warp || true
 
-      - name: ذخیره سازی دانلود شده ها (push 5 by 5, keep previous)
+      - name: saving files
         run: |
           BRANCH="${GITHUB_REF_NAME}"
           REPO_OWNER="${{ github.repository_owner }}"
           REPO_NAME="${{ github.event.repository.name }}"
-      
+        
           echo "AVASAM (https://avasam.ir) - Incremental Push Mode (5-by-5, cumulative)"
           BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
           BACKUP_FILE_LIST=($(find "$BACKUP_DIR" -type f 2>/dev/null))
           BACKUP_FILE_COUNT=${#BACKUP_FILE_LIST[@]}
-      
+        
           if [ "$BACKUP_FILE_COUNT" -eq 0 ]; then
             echo "No files to push. Exiting."
             exit 0
           fi
-      
+        
           urlencode() {
             python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
           }
-      
+        
           regenerate_master_readme() {
             MASTER_README="videos/README.md"
             { echo "# DOWNLOADED VIDEOS LIST :"; echo ""; echo "----"; echo ""; } > "$MASTER_README"
@@ -914,6 +914,7 @@ jobs:
             for folder in videos/*/; do
               [ -d "$folder" ] || continue
               FOLDER_NAME=$(basename "$folder")
+              [ "$FOLDER_NAME" = "README.md" ] && continue
               [ -f "$folder/README.md" ] || continue
               NUM=$((NUM + 1))
               RANDOM_EMOJI="${VIDEO_EMOJIS[$RANDOM % ${#VIDEO_EMOJIS[@]}]}"
@@ -922,47 +923,42 @@ jobs:
               printf -- "- %s - %s [%s](%s)\n" "$NUM" "$RANDOM_EMOJI" "$FOLDER_NAME" "$FOLDER_LINK" >> "$MASTER_README"
             done
           }
-      
+        
           git fetch origin "$BRANCH"
           git reset --hard origin/"$BRANCH"
           mkdir -p videos
-      
+        
           BATCH_SIZE=5
           BATCH_START=0
-      
+        
           while [ $BATCH_START -lt $BACKUP_FILE_COUNT ]; do
             BATCH_END=$((BATCH_START + BATCH_SIZE))
             [ $BATCH_END -gt $BACKUP_FILE_COUNT ] && BATCH_END=$BACKUP_FILE_COUNT
-      
+        
             echo "Processing files $((BATCH_START + 1)) to $BATCH_END of $BACKUP_FILE_COUNT..."
             BATCH_FILES=("${BACKUP_FILE_LIST[@]:$BATCH_START:$((BATCH_END - BATCH_START))}")
-      
-            # --- MODIFIED SECTION START ---
-            # Save each file into its own folder under videos/<video-name>/
+        
             for f in "${BATCH_FILES[@]}"; do
-              # Ensure source file exists before copy
-              if [ -f "$f" ]; then
-                video_name="$(basename "$f")"
-                # Create a safe directory name from the filename (replace problematic chars with hyphens)
-                safe_dirname=$(echo "$video_name" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//; s/-$//')
-                
-                target_dir="videos/$safe_dirname"
-                mkdir -p "$target_dir"
-                cp "$f" "$target_dir/"
-                echo "Copied '$f' to '$target_dir/'"
-              else
-                echo "Warning: Source file not found: $f"
-              fi
+              [ -f "$f" ] || continue
+              video_name="$(basename "$f")"
+        
+              # Skip master README if it exists in backup source
+              [ "$video_name" = "README.md" ] && continue
+        
+              folder_name="${video_name%.*}"
+              target_dir="videos/$folder_name"
+              mkdir -p "$target_dir"
+              cp "$f" "$target_dir/"
+              echo "Copied '$f' to '$target_dir/'"
             done
-            # --- MODIFIED SECTION END ---
-      
+        
             git add -A videos/
             regenerate_master_readme
             git add videos/README.md
-      
+        
             if ! git diff --cached --quiet; then
               git commit -m "[AVASAM] Batch push ($((BATCH_START + 1))-$BATCH_END) [skip ci]"
-      
+        
               PUSH_RETRY=0
               while [ $PUSH_RETRY -lt 10 ]; do
                 PUSH_RETRY=$((PUSH_RETRY + 1))
@@ -975,22 +971,22 @@ jobs:
                   git fetch origin "$BRANCH"
                   git reset --hard origin/"$BRANCH"
                   mkdir -p videos
-                  # --- MODIFIED SECTION START ---
-                  # Re-copy all files pushed so far to rebuild context before retry, using the new structure
+        
                   for ((i=0; i<$BATCH_END; i++)); do
                     f="${BACKUP_FILE_LIST[$i]}"
-                    if [ -f "$f" ]; then
-                      video_name="$(basename "$f")"
-                      safe_dirname=$(echo "$video_name" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//; s/-$//')
-                      target_dir="videos/$safe_dirname"
-                      mkdir -p "$target_dir"
-                      cp "$f" "$target_dir/"
-                      echo "Retried copy: Copied '$f' to '$target_dir/'"
-                    else
-                      echo "Warning: Source file not found during retry: $f"
-                    fi
+                    [ -f "$f" ] || continue
+                    video_name="$(basename "$f")"
+        
+                    # Skip master README if it exists in backup source
+                    [ "$video_name" = "README.md" ] && continue
+        
+                    folder_name="${video_name%.*}"
+                    target_dir="videos/$folder_name"
+                    mkdir -p "$target_dir"
+                    cp "$f" "$target_dir/"
+                    echo "Retried copy: Copied '$f' to '$target_dir/'"
                   done
-                  # --- MODIFIED SECTION END ---
+        
                   git add -A videos/
                   regenerate_master_readme
                   git add videos/README.md
@@ -1000,12 +996,10 @@ jobs:
             else
               echo "No changes detected for this batch."
             fi
-      
-            # Move to next batch
+        
             BATCH_START=$BATCH_END
           done
-      
+        
           echo "=========================================="
           echo "All batches pushed successfully!"
           echo "=========================================="
-          
