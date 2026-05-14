@@ -937,10 +937,24 @@ jobs:
             echo "Processing files $((BATCH_START + 1)) to $BATCH_END of $BACKUP_FILE_COUNT..."
             BATCH_FILES=("${BACKUP_FILE_LIST[@]:$BATCH_START:$((BATCH_END - BATCH_START))}")
       
-            # Copy new batch files over existing ones (no cleaning)
+            # --- MODIFIED SECTION START ---
+            # Save each file into its own folder under videos/<video-name>/
             for f in "${BATCH_FILES[@]}"; do
-              cp --parents "$f" videos/
+              # Ensure source file exists before copy
+              if [ -f "$f" ]; then
+                video_name="$(basename "$f")"
+                # Create a safe directory name from the filename (replace problematic chars with hyphens)
+                safe_dirname=$(echo "$video_name" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//; s/-$//')
+                
+                target_dir="videos/$safe_dirname"
+                mkdir -p "$target_dir"
+                cp "$f" "$target_dir/"
+                echo "Copied '$f' to '$target_dir/'"
+              else
+                echo "Warning: Source file not found: $f"
+              fi
             done
+            # --- MODIFIED SECTION END ---
       
             git add -A videos/
             regenerate_master_readme
@@ -961,10 +975,22 @@ jobs:
                   git fetch origin "$BRANCH"
                   git reset --hard origin/"$BRANCH"
                   mkdir -p videos
-                  # Re‑copy all files pushed so far to rebuild context before retry
+                  # --- MODIFIED SECTION START ---
+                  # Re-copy all files pushed so far to rebuild context before retry, using the new structure
                   for ((i=0; i<$BATCH_END; i++)); do
-                    cp --parents "${BACKUP_FILE_LIST[$i]}" videos/
+                    f="${BACKUP_FILE_LIST[$i]}"
+                    if [ -f "$f" ]; then
+                      video_name="$(basename "$f")"
+                      safe_dirname=$(echo "$video_name" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//; s/-$//')
+                      target_dir="videos/$safe_dirname"
+                      mkdir -p "$target_dir"
+                      cp "$f" "$target_dir/"
+                      echo "Retried copy: Copied '$f' to '$target_dir/'"
+                    else
+                      echo "Warning: Source file not found during retry: $f"
+                    fi
                   done
+                  # --- MODIFIED SECTION END ---
                   git add -A videos/
                   regenerate_master_readme
                   git add videos/README.md
@@ -981,5 +1007,5 @@ jobs:
       
           echo "=========================================="
           echo "All batches pushed successfully!"
-          echo "made in AVASAM (https://avasam.ir)"
           echo "=========================================="
+          
