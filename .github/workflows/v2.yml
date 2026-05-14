@@ -886,7 +886,7 @@ jobs:
           docker stop warp || true
           docker rm warp || true
 
-      - name: saving files
+      - name: Saveing Files
         run: |
           BRANCH="${GITHUB_REF_NAME}"
           REPO_OWNER="${{ github.repository_owner }}"
@@ -901,28 +901,6 @@ jobs:
             echo "No files to push. Exiting."
             exit 0
           fi
-        
-          urlencode() {
-            python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
-          }
-        
-          regenerate_master_readme() {
-            MASTER_README="videos/README.md"
-            { echo "# DOWNLOADED VIDEOS LIST :"; echo ""; echo "----"; echo ""; } > "$MASTER_README"
-            VIDEO_EMOJIS=("🎬" "🎥" "📽️" "🎞️" "📺" "🎦" "▶️")
-            NUM=0
-            for folder in videos/*/; do
-              [ -d "$folder" ] || continue
-              FOLDER_NAME=$(basename "$folder")
-              [ "$FOLDER_NAME" = "README.md" ] && continue
-              [ -f "$folder/README.md" ] || continue
-              NUM=$((NUM + 1))
-              RANDOM_EMOJI="${VIDEO_EMOJIS[$RANDOM % ${#VIDEO_EMOJIS[@]}]}"
-              FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-              FOLDER_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${BRANCH}/videos/${FOLDER_ENCODED}"
-              printf -- "- %s - %s [%s](%s)\n" "$NUM" "$RANDOM_EMOJI" "$FOLDER_NAME" "$FOLDER_LINK" >> "$MASTER_README"
-            done
-          }
         
           git fetch origin "$BRANCH"
           git reset --hard origin/"$BRANCH"
@@ -940,10 +918,13 @@ jobs:
         
             for f in "${BATCH_FILES[@]}"; do
               [ -f "$f" ] || continue
-              video_name="$(basename "$f")"
         
-              # Skip master README if it exists in backup source
-              [ "$video_name" = "README.md" ] && continue
+              video_name="$(basename "$f")"
+              case "$video_name" in
+                README.md|thumbnail*|*.thumb|*.jpg|*.jpeg|*.png|*.webp)
+                  continue
+                  ;;
+              esac
         
               folder_name="${video_name%.*}"
               target_dir="videos/$folder_name"
@@ -953,8 +934,6 @@ jobs:
             done
         
             git add -A videos/
-            regenerate_master_readme
-            git add videos/README.md
         
             if ! git diff --cached --quiet; then
               git commit -m "[AVASAM] Batch push ($((BATCH_START + 1))-$BATCH_END) [skip ci]"
@@ -975,10 +954,13 @@ jobs:
                   for ((i=0; i<$BATCH_END; i++)); do
                     f="${BACKUP_FILE_LIST[$i]}"
                     [ -f "$f" ] || continue
-                    video_name="$(basename "$f")"
         
-                    # Skip master README if it exists in backup source
-                    [ "$video_name" = "README.md" ] && continue
+                    video_name="$(basename "$f")"
+                    case "$video_name" in
+                      README.md|thumbnail*|*.thumb|*.jpg|*.jpeg|*.png|*.webp)
+                        continue
+                        ;;
+                    esac
         
                     folder_name="${video_name%.*}"
                     target_dir="videos/$folder_name"
@@ -988,8 +970,6 @@ jobs:
                   done
         
                   git add -A videos/
-                  regenerate_master_readme
-                  git add videos/README.md
                   git diff --cached --quiet || git commit -m "[AVASAM] Retried batch ($((BATCH_START + 1))-$BATCH_END) [skip ci]"
                 fi
               done
