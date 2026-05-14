@@ -43,6 +43,12 @@ jobs:
             .github
           sparse-checkout-cone-mode: false
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-cache-${{ runner.os }}-aria2
+
       - name: آماده سازی گیت برای فایلهای بزرگ
         run: |
           git config --global http.postBuffer 524288000
