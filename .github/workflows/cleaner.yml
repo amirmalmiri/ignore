@@ -1,10 +1,10 @@
-name: تمیزکننده مخزن
+name: cleaner
 
 on:
   workflow_dispatch:
     inputs:
       info:
-        description: 'با اجرای این ابزار هیچ فایلی از ریپازیتوری شما پاک نمیشود ولی تاریخچه ی فایل های دانلود شده و حذف شده که بصورت جداگانه ذخیره میشود و باعث پرشدن بیهوده ی فضای گیتهاب شما میشود پاکسازی خواهد شد . پیشنهاد میشود بعد از اتمام دانلود فایلهاتون این ابزار را یکبار اجرا کنید ✨'
+        description: 'Clean Your Repo'
         required: false
         default: '🚀 برای اجرا دکمه Run workflow رو بزن'
         type: string
@@ -63,8 +63,8 @@ jobs:
       - name: ⚙️ نصب ابزار git-filter-repo
         run: pip install git-filter-repo
 
-      - name: 🧹 حذف فایل‌های بزرگتر از 20MB
-        run: git filter-repo --strip-blobs-bigger-than 20M --force
+      - name: 🧹 حذف فایل‌های بزرگتر از 1mb
+        run: git filter-repo --strip-blobs-bigger-than 1M --force
 
       - name: 🚀 ارسال تغییرات به مخزن
         run: |
